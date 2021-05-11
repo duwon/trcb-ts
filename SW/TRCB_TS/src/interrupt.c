@@ -2,10 +2,13 @@
 
 #define GIC_DEVICE_ID				XPAR_PS7_SCUGIC_0_DEVICE_ID
 
-int flag_1sTimer = FALSE;
+uint64_t tick_1ms = 0;
+int timer_1msFlag = FALSE;
+int timer_2msFlag = FALSE;
 static XScuGic gic_Inst;
 
 void IntrHandler_PL_1MS(void *CallBackRef);
+int SetupInterruptController(void);
 
 int init_Interrupt(void)
 {
@@ -83,8 +86,15 @@ void IntrHandler_PL_1MS(void *CallBackRef)
 	cnt_1sTimer++;
 	if(cnt_1sTimer == 1000)
 	{
-		flag_1sTimer = TRUE;
+		timer_1msFlag = TRUE;
 		cnt_1sTimer = 0;
 	}
+
+	if((tick_1ms & 0x1) == 0x1)
+	{
+		timer_2msFlag = TRUE;
+	}
+
+	tick_1ms++;
 }
 

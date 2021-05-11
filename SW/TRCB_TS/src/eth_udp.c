@@ -34,12 +34,15 @@
 #include "lwip/init.h"
 #include "netif/xadapter.h"
 #include "sleep.h"
+#include "eth_que.h"
 
 
 #define DEFAULT_IP_ADDRESS	"192.168.200.61"
 #define DEFAULT_IP_MASK		"255.255.0.0"
 #define DEFAULT_GW_ADDRESS	"192.168.1.1"
 #define UDP_CONN_PORT 29000 /* server port to listen on/connect to */
+
+uint8_t rxEthData[QUE_BUFFER_SIZE][1200];
 
 extern struct netif server_netif;
 static struct udp_pcb *pcb;
@@ -155,6 +158,8 @@ void loop_ETH_UDP(void)
 	xemacif_input(netif);
 }
 
+
+
 struct pbuf * psend;
 void send_UDPData(uint8_t *data, uint16_t len)
 {
@@ -168,13 +173,12 @@ void send_UDPData(uint8_t *data, uint16_t len)
 	pbuf_free(psend);
 }
 
-uint8_t rxByte[5000][1400];
 /* recv_callback: function that handles responding to UDP packets */
 void recv_callback(void *arg, struct udp_pcb *upcb,
-                            struct pbuf *p, const ip_addr_t *addr, u16_t port)
+				   struct pbuf *p, const ip_addr_t *addr, u16_t port)
 {
-	/* Do not read the packet if we are not in ESTABLISHED state */
-	if (!p) {
+	if (!p)
+	{
 		udp_disconnect(upcb);
 		return;
 	}
@@ -187,36 +191,18 @@ void recv_callback(void *arg, struct udp_pcb *upcb,
 	send_pcb = *upcb;
 
 	static int32_t index = 0;
-	if(index == 5000)
+	if (index == QUE_BUFFER_SIZE)
 	{
 		index = 0;
 	}
 
-	memcpy(rxByte[index], p->payload, p->len);
-
-	if ((rxByte[index][0] == 0x7E) && (rxByte[index][1] == 0x7E) && (rxByte[index][3] == 0x0A))
-	{
-		uint16_t tmpSendData[4] = {0x7E7E, 0x0A04, 0x0001, 0x0000};
-		send_UDPData((uint8_t *)tmpSendData, sizeof(tmpSendData));
-	}
+	memcpy(rxEthData[index], p->payload, p->len);
+	putEthQue(rxEthData[index], p->len);
 	index++;
-
-	//send_UDPData(p->payload, p->len);
-	// Determine the number of bytes received and copy this segment to the temp array
-	//xil_printf("Data %s, len = %d \r\n", p->payload, p->len );
-
-	/**** DEBUG PRINT *****************/
-	xil_printf("Data len = %d \r\n", p->len );
-	for(int i=0; i<p->len; i++)
-	{
-		xil_printf("%2x ", rxByte[index-1][i]);
-	}
-	/**********************************/
 
 	/* free the received pbuf */
 	pbuf_free(p);
 	return;
-
 }
 
 void start_application(void)
@@ -242,4 +228,32 @@ void start_application(void)
 	udp_recv(pcb, recv_callback, NULL);
 
 	return;
+}
+
+void sendACK(uint8_t messageType)
+{
+	uint8_t bufferTemp[8] = {MESSAGE_START_CODE_7E, MESSAGE_START_CODE_7E, 0x04, 0x00, 0x01, VERSION_MINOR, 0x00, 0x00};
+
+	bufferTemp[3] = messageType;
+	bufferTemp[6] = bufferTemp[0] ^ bufferTemp[2] ^ bufferTemp[4];
+	bufferTemp[7] = bufferTemp[1] ^ bufferTemp[3] ^ bufferTemp[5];
+
+	send_UDPData(bufferTemp, 8);
+
+#ifdef _DEBUG_
+	xil_printf("\r\n Sned Ack : ");
+	for (int i = 0; i < 8; i++)
+		xil_printf("%x ", bufferTemp[i]);
+	xil_printf("\r\n");
+#endif
+}
+
+void sendNACK(uint8_t messageType)
+{
+	uint8_t bufferTemp[8] = {MESSAGE_START_CODE_7E, MESSAGE_START_CODE_7E, 0x04, 0x00, 0x02, 0x00, 0x00, 0x00};
+
+	bufferTemp[3] = messageType;
+	bufferTemp[6] = bufferTemp[0] ^ bufferTemp[2] ^ bufferTemp[4];
+	bufferTemp[7] = bufferTemp[1] ^ bufferTemp[3] ^ bufferTemp[5];
+	send_UDPData(bufferTemp, 8);
 }

@@ -42,4 +42,7 @@ void init_ETH_UDP(void);
 void loop_ETH_UDP(void);
 void send_UDPData(uint8_t *data, uint16_t len);
 
+void sendACK(uint8_t messageType);
+void sendNACK(uint8_t messageType);
+
 #endif /* __UDP_PERF_SERVER_H_ */

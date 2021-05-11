@@ -51,7 +51,15 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+#Files
 IDE.log
 .analytics
+*.zip
+
+#Directories
 .metadata/
 RemoteSystemsTempFiles/
+Packages/
+**/**/export/
+**/export/
+.vscode/
